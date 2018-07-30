@@ -1,0 +1,10 @@
+Package: com.bingner.snappy
+Name: Snappy
+Depends: 
+Version: 1.0
+Architecture: iphoneos-arm
+Description: A Tool for APFS Snapshot Management
+Maintainer: Samuel Bingner
+Author: Samuel Bingner
+Section: System
+Tag: role::hacker
