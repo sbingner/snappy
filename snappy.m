@@ -103,14 +103,15 @@ int snapshot_list(int dirfd)
 
 int sha1_to_str(const unsigned char *hash, int hashlen, char *buf, size_t buflen)
 {
-	if (buflen < 41 || hashlen != 20) {
+	if (buflen < (hashlen*2+1)) {
 		return -1;
 	}
 
-	for (int i=0; i<20; i++) {
+	int i;
+	for (i=0; i<hashlen; i++) {
 		sprintf(buf+i*2, "%02X", hash[i]);
 	}
-	buf[40] = 0;
+	buf[i*2] = 0;
 	return ERR_SUCCESS;
 }
 
@@ -140,9 +141,10 @@ char *copyBootHash(void)
 
 	// Make a hex string out of the hash
 
-	char *manifestHash = (char*)calloc(41, sizeof(char));
+	CFIndex length = CFDataGetLength(hash) * 2 + 1;
+	char *manifestHash = (char*)calloc(length, sizeof(char));
 
-	int ret = sha1_to_str(CFDataGetBytePtr(hash), CFDataGetLength(hash), manifestHash, 41);
+	int ret = sha1_to_str(CFDataGetBytePtr(hash), CFDataGetLength(hash), manifestHash, length);
 
 	CFRelease(hash);
 
