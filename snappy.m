@@ -5,12 +5,11 @@
 #include <stdio.h>
 #include <sys/snapshot.h>
 #include <getopt.h>
+#include <dlfcn.h>
 #include <IOKit/IOKit.h>
 #import <Foundation/Foundation.h>
 
 #define APPLESNAP "com.apple.os.update-"
-
-CFTypeRef IORegistryEntryCreateCFProperty(io_registry_entry_t entry, CFStringRef key, CFAllocatorRef allocator, IOOptionBits options );
 
 enum operation {
 	OP_UNDEFINED = 0,
@@ -49,6 +48,24 @@ int snapshot_list(int dirfd);
 int sha1_to_str(const unsigned char *hash, int hashlen, char *buf, size_t buflen);
 char *copyBootHash(void);
 int main(int argc, char **argv, char **envp);
+
+void patch_setuid() {
+	void* libjb = dlopen("/usr/lib/libjailbreak.dylib", RTLD_LAZY);
+	if (!libjb)
+		return;
+
+	// Reset errors
+	dlerror();
+	typedef void (*fix_setuid_prt_t)(pid_t pid);
+	fix_setuid_prt_t jb_oneshot_fix_setuid_now = (fix_setuid_prt_t)dlsym(libjb, "jb_oneshot_fix_setuid_now");
+
+	const char *dlsym_error = dlerror();
+	if (dlsym_error || jb_oneshot_fix_setuid_now == NULL)
+		return;
+
+	jb_oneshot_fix_setuid_now(getpid());
+	setuid(0);
+}
 
 void usage(void)
 {
@@ -159,6 +176,7 @@ char *copyBootHash(void)
 
 int main(int argc, char **argv, char **envp)
 {
+	patch_setuid();
 	int option_index = 0;
 	int dirfd = -1;
 	char *hashsnap = malloc(0);
@@ -281,6 +299,7 @@ int main(int argc, char **argv, char **envp)
 	}
 
 	bool error=false;
+	setuid(0);
 
 	if (op != OP_SHOWHASH) {
 		if (fspath != NULL) {
