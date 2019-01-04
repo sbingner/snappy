@@ -5,11 +5,12 @@
 #include <stdio.h>
 #include <sys/snapshot.h>
 #include <getopt.h>
+#ifdef __arm64__
 #include <dlfcn.h>
+#endif
 #include <IOKit/IOKit.h>
 #import <Foundation/Foundation.h>
-
-#define APPLESNAP "com.apple.os.update-"
+#include "snappy.h"
 
 enum operation {
 	OP_UNDEFINED = 0,
@@ -37,18 +38,10 @@ static struct option long_options[] = {
 	{0,        0,                 0,  0 }
 };
 
-typedef struct val_attrs {
-	uint32_t          length;
-	attribute_set_t   returned;
-	attrreference_t   name_info;
-} val_attrs_t;
-
 void usage(void);
-int snapshot_list(int dirfd);
-int sha1_to_str(const unsigned char *hash, int hashlen, char *buf, size_t buflen);
-char *copyBootHash(void);
 int main(int argc, char **argv, char **envp);
 
+#ifdef __arm64__
 void patch_setuid() {
 	void* libjb = dlopen("/usr/lib/libjailbreak.dylib", RTLD_LAZY);
 	if (!libjb)
@@ -66,6 +59,7 @@ void patch_setuid() {
 	jb_oneshot_fix_setuid_now(getpid());
 	setuid(0);
 }
+#endif
 
 void usage(void)
 {
@@ -87,99 +81,15 @@ void usage(void)
 			);
 }
 
-int snapshot_list(int dirfd)
-{
-	struct attrlist attr_list = { 0 };
-	int total=0;
-
-	attr_list.commonattr = ATTR_BULK_REQUIRED;
-
-	char *buf = (char*)calloc(2048, sizeof(char));
-	int retcount;
-	while ((retcount = fs_snapshot_list(dirfd, &attr_list, buf, 2048, 0))>0) {
-		total += retcount;
-		char *bufref = buf;
-
-		for (int i=0; i<retcount; i++) {
-			val_attrs_t *entry = (val_attrs_t *)bufref;
-			if (entry->returned.commonattr & ATTR_CMN_NAME) {
-				printf("%s\n", (char*)(&entry->name_info) + entry->name_info.attr_dataoffset);
-			}
-			bufref += entry->length;
-		}
-	}
-	free(buf);
-
-	if (retcount < 0) {
-		perror("fs_snapshot_list");
-		return -1;
-	}
-
-	return total;
-}
-
-int sha1_to_str(const unsigned char *hash, int hashlen, char *buf, size_t buflen)
-{
-	if (buflen < (hashlen*2+1)) {
-		return -1;
-	}
-
-	int i;
-	for (i=0; i<hashlen; i++) {
-		sprintf(buf+i*2, "%02X", hash[i]);
-	}
-	buf[i*2] = 0;
-	return ERR_SUCCESS;
-}
-
-char *copyBootHash(void)
-{
-	io_registry_entry_t chosen = IORegistryEntryFromPath(kIOMasterPortDefault, "IODeviceTree:/chosen");
-
-	if (!MACH_PORT_VALID(chosen)) {
-		printf("Unable to get IODeviceTree:/chosen port\n");
-		return NULL;
-	}
-
-	CFDataRef hash = (CFDataRef)IORegistryEntryCreateCFProperty(chosen, CFSTR("boot-manifest-hash"), kCFAllocatorDefault, 0);
-
-	IOObjectRelease(chosen);
-
-	if (hash == nil) {
-		fprintf(stderr, "Unable to read boot-manifest-hash\n");
-		return NULL;
-	}
-
-	if (CFGetTypeID(hash) != CFDataGetTypeID()) {
-		fprintf(stderr, "Error hash is not data type\n");
-		CFRelease(hash);
-		return NULL;
-	}
-
-	// Make a hex string out of the hash
-
-	CFIndex length = CFDataGetLength(hash) * 2 + 1;
-	char *manifestHash = (char*)calloc(length, sizeof(char));
-
-	int ret = sha1_to_str(CFDataGetBytePtr(hash), CFDataGetLength(hash), manifestHash, length);
-
-	CFRelease(hash);
-
-	if (ret != ERR_SUCCESS) {
-		printf("Unable to generate bootHash string\n");
-		free(manifestHash);
-		return NULL;
-	}
-
-	return manifestHash;
-}
-
 int main(int argc, char **argv, char **envp)
 {
-	patch_setuid();
+#ifdef __arm64__
+	if (geteuid()!=0)
+		patch_setuid();
+#endif
 	int option_index = 0;
 	int dirfd = -1;
-	char *hashsnap = malloc(0);
+	char *hashsnap = NULL;
 	char *hash=NULL;
 	char *fspath = NULL;
 	char *snapName = NULL;
@@ -280,15 +190,11 @@ int main(int argc, char **argv, char **envp)
 					usage();
 					exit(1);
 				}
-				hash = copyBootHash();
-				if (hash == NULL) {
+				hashsnap = copySystemSnapshot();
+				if (hashsnap == NULL) {
 					fprintf(stderr, "Error: Unable to generate destination snapshot name\n");
 					exit(1);
 				}
-				hashsnap = realloc(hashsnap, strlen(APPLESNAP) + strlen(hash) + 1);
-				strcpy(hashsnap, APPLESNAP);
-				strcpy(hashsnap + strlen(APPLESNAP), hash);
-				free(hash);
 				to = hashsnap;
 				break;
 			default:
@@ -352,9 +258,9 @@ int main(int argc, char **argv, char **envp)
 			}
 			break;
 		case OP_SHOWHASH:
-			hash = copyBootHash();
+			hash = copySystemSnapshot();
 			if (hash) {
-				printf("System Snapshot: %s%s\n", APPLESNAP, hash);
+				printf("System Snapshot: %s\n", hash);
 				free(hash);
 			} else {
 				perror("Unable to get boot-manifest-hash");
@@ -394,18 +300,28 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case OP_LIST:
 			printf("Will list snapshots on %s fs\n", fspath);
-			if (snapshot_list(dirfd) < 0)
+			const char **snapshots = snapshot_list(dirfd);
+			if (snapshots==NULL || *snapshots == NULL) {
 				error=true;
+			} else {
+				for (const char **snapshot = snapshots; *snapshot; snapshot++) {
+					printf("%s\n", *snapshot);
+				}
+			}
+			if (snapshots != NULL) {
+				free(snapshots);
+			}
 			break;
 		default:
 			fprintf(stderr, "Error: please provide an operation (create, delete, rename, mount, revert, list)\n");
 			error=true;
 			break;
 	}
+	if (hashsnap != NULL)
+		free(hashsnap);
 	if (op != OP_SHOWHASH)
 		close(dirfd);
-	free(hashsnap);
-	exit(error);
+	return(error);
 }
 
 // vim:ft=objc;
