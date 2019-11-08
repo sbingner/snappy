@@ -2,14 +2,16 @@
 	 */
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include <stdio.h>
 #include <sys/snapshot.h>
+#include <sys/fcntl.h>
 #include <getopt.h>
 #ifdef __arm64__
 #include <dlfcn.h>
 #endif
 #include <IOKit/IOKit.h>
-#import <Foundation/Foundation.h>
 #include "snappy.h"
 
 enum operation {
@@ -324,4 +326,4 @@ int main(int argc, char **argv, char **envp)
 	return(error);
 }
 
-// vim:ft=objc;
+// vim:ft=objc

@@ -72,8 +72,8 @@ const char **snapshot_list(int dirfd)
 	while ((retcount = fs_snapshot_list(dirfd, &attr_list, &buf, sizeof(buf), 0))>0) {
 		val_attrs_t *entry = &buf;
 
-        int i;
-		for (i=0; i<retcount; i++) {
+                int i;
+                for (i=0; i<retcount; i++) {
 			if (entry->returned.commonattr & ATTR_CMN_NAME) {
 				size_t size = strlen(entry->name) + 1;
 				if (snapidx > 255) {
@@ -91,13 +91,13 @@ const char **snapshot_list(int dirfd)
 				snapshots[snapidx] = (char *)snapshots + nameOffset;
 				nameOffset += size;
 				strncpy(snapshots[snapidx], entry->name, size);
-                snapidx++;
-			}
+                                snapidx++;
+                        }
 
 			entry = (val_attrs_t *)((char *)entry + entry->length);
 		}
-        bzero(&buf, sizeof(buf));
-	}
+                bzero(&buf, sizeof(buf));
+        }
 
 	if (retcount < 0) {
 		perror("fs_snapshot_list");
@@ -175,3 +175,88 @@ char *copySystemSnapshot()
     free(hash);
     return hashsnap;
 }
+
+@implementation SBSnappy : NSObject
+int fd=-1;
+
++(SBSnappy*)snappyWithPath:(NSString*)path {
+    return [[[SBSnappy alloc] initWithPath:path] autorelease];
+}
+
++(NSString*)systemSnapshot {
+    char *snapName = copySystemSnapshot();
+    if (!snapName) {
+        return nil;
+    }
+
+    NSString *snap = [[NSString alloc] initWithBytesNoCopy:snapName length:strlen(snapName) encoding:NSUTF8StringEncoding freeWhenDone:YES];
+    return [snap autorelease];
+}
+
+-(SBSnappy*)initWithPath:(NSString*)path {
+    self = [super init];
+    if (fd >= 0)
+        close(fd);
+
+    fd = open(path.UTF8String, O_RDONLY);
+    if (fd < 0) {
+        return nil;
+    }
+    return self;
+}
+
+-(BOOL)hasSnapshot:(NSString*)snapshot {
+    if (fd < 0) {
+        NSLog(@"hasSnapshot called with no path set");
+        return NO;
+    }
+
+    return snapshot_check(fd, snapshot.UTF8String);
+}
+
+-(NSArray <NSString*> *)snapshots {
+    if (fd < 0) {
+        NSLog(@"hasSnapshot called with no path set");
+        return nil;
+    }
+    const char **snaps = snapshot_list(fd);
+    if (snaps == NULL)
+        return nil;
+
+    NSMutableArray *snapshots = [NSMutableArray new];
+    for (const char **snap = snaps; *snap; snap++) {
+        [snapshots addObject:@(*snap)];
+    }
+    free(snaps);
+    return [[snapshots copy] autorelease];
+}
+
+-(BOOL)create:(NSString*)name {
+    return fs_snapshot_create(fd, name.UTF8String, 0) == ERR_SUCCESS;
+}
+
+-(BOOL)delete:(NSString*)name {
+    return fs_snapshot_delete(fd, name.UTF8String, 0) == ERR_SUCCESS;
+}
+
+-(BOOL)rename:(NSString*)name to:(NSString*)newName {
+    return fs_snapshot_rename(fd, name.UTF8String, newName.UTF8String, 0) == ERR_SUCCESS;
+}
+
+-(BOOL)mount:(NSString*)name to:(NSString*)path {
+    return fs_snapshot_mount(fd, path.UTF8String, name.UTF8String, 0) == ERR_SUCCESS;
+}
+
+-(BOOL)revert:(NSString*)name {
+    return fs_snapshot_revert(fd, name.UTF8String, 0) == ERR_SUCCESS;
+}
+
+-(void)dealloc {
+    [super dealloc];
+    if (fd >= 0) {
+        close(fd);
+        fd = -1;
+    }
+}
+
+@end
