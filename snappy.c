@@ -22,7 +22,8 @@ enum operation {
 	OP_MOUNT,
 	OP_RENAME,
 	OP_REVERT,
-	OP_SHOWHASH
+	OP_SHOWHASH,
+	OP_ORIG
 };
 
 static struct option long_options[] = {
@@ -37,6 +38,7 @@ static struct option long_options[] = {
 	{"to-system",  no_argument, 0, 'x'},
 	{"mount",  required_argument, 0, 'm'},
 	{"revert", required_argument, 0, 'v'},
+	{"orig", no_argument, 0, 'o'},
 	{0,        0,                 0,  0 }
 };
 
@@ -80,6 +82,7 @@ void usage(void)
 			"\t-v, --revert NAME\tRevert to snapshot named NAME\n"
 			"\t-s, --showhash\t\tShow the name of the system snapshot for this boot-manifest-hash\n"
 			"\t-x, --to-system\t\tSet the target snapshot name to be the iOS system-snapshot\n"
+			"\t-o, --orig\t\tRevert to the original pre-jailbreak snapshot\n"
 			);
 }
 
@@ -94,7 +97,7 @@ int main(int argc, char **argv, char **envp)
 	char *hashsnap = NULL;
 	char *hash=NULL;
 	char *fspath = NULL;
-	char *snapName = NULL;
+	const char *snapName = NULL;
 	char *to = NULL;
 
 	enum operation op = OP_UNDEFINED;
@@ -103,7 +106,7 @@ int main(int argc, char **argv, char **envp)
 		usage();
 		exit(1);
 	}
-	while ((c = getopt_long(argc, argv, "hf:c:d:r:st:lm:v:x", long_options, &option_index)) != -1) {
+	while ((c = getopt_long(argc, argv, "hf:c:d:r:st:lm:v:xo", long_options, &option_index)) != -1) {
 		switch (c) {
 			case 'c':
 				if (op != OP_UNDEFINED) {
@@ -199,6 +202,21 @@ int main(int argc, char **argv, char **envp)
 				}
 				to = hashsnap;
 				break;
+
+			case 'o':
+				if (op != OP_UNDEFINED) {
+					fprintf(stderr, "Error: multiple operations not supported\n");
+					usage();
+					exit(1);
+				}
+				op = OP_ORIG;
+				hashsnap = copySystemSnapshot();
+				if (hashsnap == NULL) {
+					fprintf(stderr, "Error: Unable to generate destination snapshot name\n");
+					exit(1);
+				}
+				to = hashsnap;
+				break;
 			default:
 				usage();
 				exit(1);
@@ -210,6 +228,9 @@ int main(int argc, char **argv, char **envp)
 	setuid(0);
 
 	if (op != OP_SHOWHASH) {
+		if (op == OP_ORIG && fspath == NULL) {
+			fspath = "/";
+		}
 		if (fspath != NULL) {
 			dirfd = open(fspath, O_RDONLY);
 			if (dirfd == -1) {
@@ -259,6 +280,32 @@ int main(int argc, char **argv, char **envp)
 				error=true;
 			}
 			break;
+
+		case OP_ORIG: {
+			if (to == NULL) {
+				fprintf(stderr, "Error: rename requested but no new name (--to) provided\n");
+				usage();
+				error=true;
+				break;
+			}
+			const char **snapshots = snapshot_list(dirfd);
+			if (snapshots==NULL || *snapshots == NULL) {
+				fprintf(stderr, "Error: no snapshots found on fs at \"%s\"\n", fspath);
+				error=true;
+			} else {
+				snapName = snapshots[0];
+				printf("Will rename snapshot %s on fs %s to %s\n", snapName, fspath, to);
+
+				if (fs_snapshot_rename(dirfd, snapName, to, 0) == ERR_SUCCESS) {
+					printf("Rename Success\n");
+				} else {
+					perror("fs_snapshot_rename");
+					printf("Failure\n");
+					error=true;
+				}
+			}
+			if (snapshots != NULL) free(snapshots);
+			} break;
 		case OP_SHOWHASH:
 			hash = copySystemSnapshot();
 			if (hash) {
@@ -286,7 +333,7 @@ int main(int argc, char **argv, char **envp)
 			}
 			break;
 		case OP_REVERT:
-#if TARGET_IPHONE
+#if (TARGET_IPHONE || TARGET_OS_TV)
 			fprintf(stderr, "Cowardly refusing to revert snapshot on iOS because it would permanently corrupt the filesystem (something is broken on the devices)\n");
 			error=true;
 			break;
