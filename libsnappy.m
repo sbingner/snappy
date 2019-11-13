@@ -278,8 +278,12 @@ int fd=-1;
     return [self rename:firstSnap to:systemSnap];
 }
 
+-(BOOL)mount:(NSString*)name to:(NSString*)path withFlags:(uint32_t)flags {
+    return fs_snapshot_mount(fd, path.UTF8String, name.UTF8String, flags) == ERR_SUCCESS;
+}
+
 -(BOOL)mount:(NSString*)name to:(NSString*)path {
-    return fs_snapshot_mount(fd, path.UTF8String, name.UTF8String, 0) == ERR_SUCCESS;
+    return [self mount:name to:path withFlags:0];
 }
 
 -(BOOL)revert:(NSString*)name {

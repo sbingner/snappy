@@ -19,6 +19,7 @@
 -(BOOL)delete:(NSString*)name;
 -(BOOL)rename:(NSString*)name to:(NSString*)newName;
 -(BOOL)renameToStock;
+-(BOOL)mount:(NSString*)name to:(NSString*)path withFlags:(uint32_t)flags;
 -(BOOL)mount:(NSString*)name to:(NSString*)path;
 -(BOOL)revert:(NSString*)name;
 @end
