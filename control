@@ -1,7 +1,7 @@
 Package: com.bingner.snappy
 Name: Snappy
 Depends: firmware (>= 10.3)
-Version: 1.2.1~b2
+Version: 1.3.0
 Architecture: iphoneos-arm
 Description: A Tool for APFS Snapshot Management
 Maintainer: Sam Bingner <maintainer@sbdhi.com>

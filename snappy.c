@@ -195,7 +195,7 @@ int main(int argc, char **argv, char **envp)
 					usage();
 					exit(1);
 				}
-				hashsnap = copySystemSnapshot();
+				hashsnap = copy_system_snapshot();
 				if (hashsnap == NULL) {
 					fprintf(stderr, "Error: Unable to generate destination snapshot name\n");
 					exit(1);
@@ -210,7 +210,7 @@ int main(int argc, char **argv, char **envp)
 					exit(1);
 				}
 				op = OP_ORIG;
-				hashsnap = copySystemSnapshot();
+				hashsnap = copy_system_snapshot();
 				if (hashsnap == NULL) {
 					fprintf(stderr, "Error: Unable to generate destination snapshot name\n");
 					exit(1);
@@ -281,33 +281,24 @@ int main(int argc, char **argv, char **envp)
 			}
 			break;
 
-		case OP_ORIG: {
-			if (to == NULL) {
-				fprintf(stderr, "Error: rename requested but no new name (--to) provided\n");
-				usage();
-				error=true;
-				break;
+		case OP_ORIG:
+			snapName = copy_first_snapshot(dirfd);
+			if (snapName == NULL) {
+				fprintf(stderr, "Error: You have no snapshots?\n");
+				exit(1);
 			}
-			const char **snapshots = snapshot_list(dirfd);
-			if (snapshots==NULL || *snapshots == NULL) {
-				fprintf(stderr, "Error: no snapshots found on fs at \"%s\"\n", fspath);
-				error=true;
-			} else {
-				snapName = snapshots[0];
-				printf("Will rename snapshot %s on fs %s to %s\n", snapName, fspath, to);
+			printf("Will rename snapshot %s on fs %s to %s\n", snapName, fspath, to);
 
-				if (fs_snapshot_rename(dirfd, snapName, to, 0) == ERR_SUCCESS) {
-					printf("Rename Success\n");
-				} else {
-					perror("fs_snapshot_rename");
-					printf("Failure\n");
-					error=true;
-				}
+			if (fs_snapshot_rename(dirfd, snapName, to, 0) == ERR_SUCCESS) {
+				printf("Rename Success\nReboot to stock to complete reversion.\n");
+			} else {
+				perror("fs_snapshot_rename");
+				printf("Failure\n");
+				error=true;
 			}
-			if (snapshots != NULL) free(snapshots);
-			} break;
+			break;
 		case OP_SHOWHASH:
-			hash = copySystemSnapshot();
+			hash = copy_system_snapshot();
 			if (hash) {
 				printf("System Snapshot: %s\n", hash);
 				free(hash);
@@ -349,7 +340,7 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case OP_LIST:
 			printf("Will list snapshots on %s fs\n", fspath);
-			const char **snapshots = snapshot_list(dirfd);
+			const char **snapshots = copy_snapshot_list(dirfd);
 			if (snapshots==NULL || *snapshots == NULL) {
 				error=true;
 			} else {

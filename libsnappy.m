@@ -1,5 +1,5 @@
-/* Copyright 2018 Sam Bingner All Rights Reserved
-	 */
+/* Copyright 2018-2019 Sam Bingner All Rights Reserved
+ */
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -37,7 +37,7 @@ typedef struct val_attrs {
 
 bool snapshot_check(int dirfd, const char *name)
 {
-    const char **snapshots = snapshot_list(dirfd);
+    const char **snapshots = copy_snapshot_list(dirfd);
     if (snapshots == NULL) {
         return false;
     }
@@ -51,7 +51,20 @@ bool snapshot_check(int dirfd, const char *name)
     return false;
 }
 
-const char **snapshot_list(int dirfd)
+const char *copy_first_snapshot(int dirfd)
+{
+    char *snapshot = NULL;
+
+    const char **snapshots = copy_snapshot_list(dirfd);
+    if (!snapshots) return NULL;
+    if (snapshots[0]) {
+        snapshot = strdup(snapshots[0]);
+    }
+    free(snapshots);
+    return snapshot;
+}
+
+const char **copy_snapshot_list(int dirfd)
 {
 	uint64_t nameOffset = 257 * sizeof(char *);
 	uint64_t snapshots_size = nameOffset + MAXPATHLEN;
@@ -163,7 +176,7 @@ static char *copyBootHash(void)
 	return manifestHash;
 }
 
-char *copySystemSnapshot()
+char *copy_system_snapshot()
 {
     char *hash = copyBootHash();
     if (hash == NULL) {
@@ -184,7 +197,7 @@ int fd=-1;
 }
 
 +(NSString*)systemSnapshot {
-    char *snapName = copySystemSnapshot();
+    char *snapName = copy_system_snapshot();
     if (!snapName) {
         return nil;
     }
@@ -219,7 +232,7 @@ int fd=-1;
         NSLog(@"hasSnapshot called with no path set");
         return nil;
     }
-    const char **snaps = snapshot_list(fd);
+    const char **snaps = copy_snapshot_list(fd);
     if (snaps == NULL)
         return nil;
 
@@ -229,6 +242,16 @@ int fd=-1;
     }
     free(snaps);
     return [[snapshots copy] autorelease];
+}
+
+-(NSString*)firstSnapshot {
+    const char *snapName = copy_first_snapshot(fd);
+    if (!snapName) {
+        return nil;
+    }
+
+    NSString *snap = [[NSString alloc] initWithBytesNoCopy:(char*)snapName length:strlen(snapName) encoding:NSUTF8StringEncoding freeWhenDone:YES];
+    return [snap autorelease];
 }
 
 -(BOOL)create:(NSString*)name {
@@ -241,6 +264,18 @@ int fd=-1;
 
 -(BOOL)rename:(NSString*)name to:(NSString*)newName {
     return fs_snapshot_rename(fd, name.UTF8String, newName.UTF8String, 0) == ERR_SUCCESS;
+}
+
+-(BOOL)renameToStock {
+    NSString *firstSnap = [self firstSnapshot];
+    NSLog(@"firstSnap: %@", firstSnap);
+    if (!firstSnap) return NO;
+
+    NSString *systemSnap = [SBSnappy systemSnapshot];
+    NSLog(@"systemSnap: %@", systemSnap);
+    if (!systemSnap) return NO;
+
+    return [self rename:firstSnap to:systemSnap];
 }
 
 -(BOOL)mount:(NSString*)name to:(NSString*)path {

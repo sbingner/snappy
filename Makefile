@@ -1,11 +1,12 @@
 target ?= iphone:clang:11.0:10.0
 ARCHS ?= arm64 armv7
 DEBUG ?= no
-include $(THEOS)/makefiles/common.mk
+include theos/makefiles/common.mk
 
 LIBRARY_NAME = libsnappy
 libsnappy_FILES = libsnappy.m
 libsnappy_FRAMEWORKS = IOKit
+libsnappy_LDFLAGS = -compatibility_version 1.0.0 -current_version $(THEOS_PACKAGE_BASE_VERSION)
 
 TOOL_NAME = snappy
 snappy_FILES = snappy.c
