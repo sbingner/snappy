@@ -1,7 +1,8 @@
 target ?= iphone:clang:11.0:10.0
 ARCHS ?= arm64 armv7
 DEBUG ?= no
-include theos/makefiles/common.mk
+THEOS ?= theos
+include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = libsnappy
 libsnappy_FILES = libsnappy.m

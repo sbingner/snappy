@@ -29,6 +29,7 @@ enum operation {
 static struct option long_options[] = {
 	{"help",    no_argument,       0, 'h'},
 	{"filesystem", required_argument, 0, 'f'},
+	{"flags", required_argument, 0, 'g'},
 	{"list", no_argument, 0, 'l'},
 	{"create",  required_argument, 0, 'c'},
 	{"delete",  required_argument, 0, 'd'},
@@ -75,10 +76,11 @@ void usage(void)
 			"\t-d, --delete NAME\tDelete a snapshot named NAME\n"
 			"\t-r, --rename NAME\tRename a snapshot named NAME to name supplied by --to\n"
 			"\t-m, --mount NAME\tMount snapshot named NAME to path specified by --to\n"
+			"\t-g, --flags FLAGS\tMount flags (integer) to use when mounting\n"
 #if TARGET_IPHONE
 			"\t\t\t\t\t(Mount currently not working on iOS)\n"
 #endif
-			"\t-t, --to NAME\n"
+			"\t-t, --to PATH\n"
 			"\t-v, --revert NAME\tRevert to snapshot named NAME\n"
 			"\t-s, --showhash\t\tShow the name of the system snapshot for this boot-manifest-hash\n"
 			"\t-x, --to-system\t\tSet the target snapshot name to be the iOS system-snapshot\n"
@@ -99,6 +101,7 @@ int main(int argc, char **argv, char **envp)
 	char *fspath = NULL;
 	const char *snapName = NULL;
 	char *to = NULL;
+	int flags = 0;
 
 	enum operation op = OP_UNDEFINED;
 	int c;
@@ -106,7 +109,7 @@ int main(int argc, char **argv, char **envp)
 		usage();
 		exit(1);
 	}
-	while ((c = getopt_long(argc, argv, "hf:c:d:r:st:lm:v:xo", long_options, &option_index)) != -1) {
+	while ((c = getopt_long(argc, argv, "hf:c:d:g:r:st:lm:v:xo", long_options, &option_index)) != -1) {
 		switch (c) {
 			case 'c':
 				if (op != OP_UNDEFINED) {
@@ -133,6 +136,14 @@ int main(int argc, char **argv, char **envp)
 					exit(1);
 				}
 				fspath = optarg;
+				break;
+			case 'g':
+				flags = (int)strtol(optarg, NULL, 0);
+				if (errno == EINVAL || errno == ERANGE) {
+					perror("Error parsing flags:");
+					usage();
+					exit(1);
+				}
 				break;
 			case 'h':
 				usage();
@@ -315,7 +326,7 @@ int main(int argc, char **argv, char **envp)
 				break;
 			}
 			printf("Will mount snapshot %s on fs %s to %s\n", snapName, fspath, to);
-			if (fs_snapshot_mount(dirfd, to, snapName, 0) == ERR_SUCCESS) {
+			if (fs_snapshot_mount(dirfd, to, snapName, flags) == ERR_SUCCESS) {
 				printf("Success\n");
 			} else {
 				perror("fs_snapshot_mount");
