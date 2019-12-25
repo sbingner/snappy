@@ -11,7 +11,7 @@
 #ifdef __arm64__
 #include <dlfcn.h>
 #endif
-#include <IOKit/IOKit.h>
+#include <IOKit/IOKitLib.h>
 #include "snappy.h"
 
 enum operation {
