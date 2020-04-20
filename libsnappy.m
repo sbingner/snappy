@@ -7,8 +7,8 @@
 #include <strings.h>
 #include <getopt.h>
 #import <CoreFoundation/CoreFoundation.h>
-#if __has_include(<IOKit/IOKit.h>)
-#include <IOKit/IOKit.h>
+#if __has_include(<IOKit/IOKitLib.h>)
+#include <IOKit/IOKitLib.h>
 #else
 #include <mach/error.h>
 typedef mach_port_t     io_object_t;
