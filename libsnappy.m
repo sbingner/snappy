@@ -122,7 +122,9 @@ int fd=-1;
 }
 
 -(void)dealloc {
+#if !__has_feature(objc_arc)
     [super dealloc];
+#endif
     if (fd >= 0) {
         close(fd);
         fd = -1;
