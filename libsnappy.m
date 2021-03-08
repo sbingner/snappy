@@ -8,7 +8,11 @@
 int fd=-1;
 
 +(SBSnappy*)snappyWithPath:(NSString*)path {
+#if __has_feature(objc_arc)
+    return [[SBSnappy alloc] initWithPath:path];
+#else
     return [[[SBSnappy alloc] initWithPath:path] autorelease];
+#endif
 }
 
 +(NSString*)systemSnapshot {
@@ -18,7 +22,11 @@ int fd=-1;
     }
 
     NSString *snap = [[NSString alloc] initWithBytesNoCopy:snapName length:strlen(snapName) encoding:NSUTF8StringEncoding freeWhenDone:YES];
+#if __has_feature(objc_arc)
+    return snap;
+#else
     return [snap autorelease];
+#endif
 }
 
 -(SBSnappy*)initWithPath:(NSString*)path {
@@ -56,7 +64,11 @@ int fd=-1;
         [snapshots addObject:@(*snap)];
     }
     free(snaps);
+#if __has_feature(objc_arc)
+    return [snapshots copy];
+#else
     return [[snapshots copy] autorelease];
+#endif
 }
 
 -(NSString*)firstSnapshot {
@@ -66,7 +78,11 @@ int fd=-1;
     }
 
     NSString *snap = [[NSString alloc] initWithBytesNoCopy:(char*)snapName length:strlen(snapName) encoding:NSUTF8StringEncoding freeWhenDone:YES];
+#if __has_feature(objc_arc)
+    return snap;
+#else
     return [snap autorelease];
+#endif
 }
 
 -(BOOL)create:(NSString*)name {
